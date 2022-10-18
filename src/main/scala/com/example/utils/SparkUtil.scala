@@ -23,7 +23,6 @@ object SparkUtil {
       .read
       .option("sep","\\t")
       .option("header","true")
-      .option("inferSchema","true")
       .csv(filePath)
   }
 

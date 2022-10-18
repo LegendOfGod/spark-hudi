@@ -31,7 +31,7 @@ object SparkHudiETLJob {
       .option(RECORDKEY_FIELD.key(), "order_id")
       .option(PARTITIONPATH_FIELD.key(), "partitionpath")
       .option(TBL_NAME.key(), tableName)
-      .mode(SaveMode.Overwrite)
+      .mode(SaveMode.Append)
       .save(basePath)
   }
 
