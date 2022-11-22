@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
  * @author lqb
  * @date 2022/11/15 19:20
  */
-object OfficialGuideDemo extends Serializable {
+object RddDemo extends Serializable {
   def main(args: Array[String]): Unit = {
     testRddActions()
   }
