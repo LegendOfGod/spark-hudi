@@ -1,6 +1,8 @@
 package com.example.demo
 
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
+import org.apache.spark.util.LongAccumulator
 import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 
 import scala.collection.mutable.ArrayBuffer
@@ -11,10 +13,10 @@ import scala.collection.mutable.ArrayBuffer
  */
 object OfficialGuideDemo extends Serializable {
   def main(args: Array[String]): Unit = {
-    testRdd()
+    testRddActions()
   }
 
-  def testRdd(): Unit = {
+  def testRddTransformations(): Unit = {
     val conf: SparkConf = new SparkConf().setMaster("local[4]").setAppName("RDDTest")
     val sparkContext: SparkContext = new SparkContext(conf)
     val data1: RDD[String] = sparkContext.textFile("src/main/resources/datas/word.txt")
@@ -106,6 +108,64 @@ object OfficialGuideDemo extends Serializable {
     //repartitionAndSortWithinPartitions
     val repartitionAndSortWithinPartitionsRdd: RDD[(String, Int)] = reduceWordCount.repartitionAndSortWithinPartitions(new MyPartitioner(3))
     repartitionAndSortWithinPartitionsRdd.glom().collect().toList.foreach(i=>println(i.mkString("Array(", ", ", ")")))
+  }
+
+  def testRddActions():Unit = {
+    val conf: SparkConf = new SparkConf().setMaster("local[4]").setAppName("testRddActions")
+    val sparkContext: SparkContext = new SparkContext(conf)
+    val wordCountData: RDD[String] = sparkContext.textFile("src/main/resources/datas/word.txt")
+    val wordRdd: RDD[String] = wordCountData.flatMap(i => i.split(" "))
+    val wordCountRdd: RDD[(String, Int)] = wordRdd.map((_, 1))
+    //reduce
+    val reduceResult: (String, Int) = wordCountRdd.reduce((i, j) => (j._1, i._2 + j._2))
+    println("reduceResult===" + reduceResult)
+    //count
+    val count: Long = wordCountRdd.count()
+    println("count==" + count)
+    //first
+    val first: (String, Int) = wordCountRdd.first()
+    println("first==" + first)
+    //take
+    val takeRdd: Array[(String, Int)] = wordCountRdd.take(3)
+    println("takeRdd==" + takeRdd.mkString("Array(", ", ", ")"))
+    //takeSample
+    val takeSampleRdd: Array[(String, Int)] = wordCountRdd.takeSample(withReplacement = true, 5)
+    println("takeSampleRdd==" + takeSampleRdd.mkString("Array(", ", ", ")"))
+    //takeOrdered
+    val takeOrderedRdd: Array[String] = wordCountData.takeOrdered(1)
+    println("takeOrderedRdd==" + takeOrderedRdd.mkString("Array(", ", ", ")"))
+    //saveAsTextFile
+    //wordCountData.saveAsTextFile("src/main/resources/datas/out.txt")
+    //saveAsSequenceFile
+    //wordCountRdd.saveAsSequenceFile("src/main/resources/datas/out1")
+    //countByKey
+    val countByKeyMap: collection.Map[String, Long] = wordCountRdd.countByKey()
+    println("countByKeyMap" + countByKeyMap)
+    //cause shuffle operations: repartition and coalesce, ‘ByKey operations (except for counting) like groupByKey and reduceByKey, and join operations like cogroup and join.
+    wordCountRdd.persist()
+    wordCountRdd.cache()
+    /*
+        rdd persist()
+        storage-level:MEMORY_ONLY  MEMORY_AND_DISK   MEMORY_ONLY_SER(Java and Scala)  MEMORY_AND_DISK_SER(Java and
+        Scala)  DISK_ONLY  MEMORY_ONLY_2, MEMORY_AND_DISK_2, etc. OFF_HEAP (experimental)
+        如何选择storage-level
+        1、如果MEMORY_ONLY合适 优先MEMORY_ONLY
+        2、如果1不行 再尝试MEMORY_ONLY_SER 并且选择快的序列化框架比如Kryo
+        3、除非你要计算的dataset非常大 万不得已不要溢写到disk
+        4、如果想快速恢复，可以选择replicated ones，如MEMORY_ONLY_2, MEMORY_AND_DISK_2
+
+        spark采用lru自动干掉cache 如果想手动改的话可以使用RDD.unpersist()
+    */
+    //broadcast 释放使用unpersist 后续再使用会重新广播  永久释放请选择destroy
+    val bcValue: Broadcast[ArrayBuffer[String]] = sparkContext.broadcast(ArrayBuffer("hadoop", "flink"))
+    println(bcValue.value)
+    bcValue.unpersist()
+    bcValue.destroy()
+    //accumulator
+    val accumulator: LongAccumulator = sparkContext.longAccumulator("my ac")
+    val intRdd: RDD[Int] = sparkContext.parallelize(Seq(1, 2, 3, 4, 5))
+    intRdd.foreach(accumulator.add(_))
+    println("accumulator==" + accumulator)
   }
 
 object MyFunction{
